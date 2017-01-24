@@ -13,6 +13,8 @@ public class Chunk : MonoBehaviour {
 
     public static bool Working = false;
 
+    public Vector3 chunkPosition;
+
     public List<byte[,,]> maps = new List<byte[,,]>();
     public byte[,] heightMap = new byte[Width, Width];
 
@@ -29,6 +31,7 @@ public class Chunk : MonoBehaviour {
 
     private void Awake()
     {
+        chunkPosition = transform.position;
         transform.parent = World.me;
         for(int i = 0; i < ChunkStack; i++)
         {
@@ -48,6 +51,7 @@ public class Chunk : MonoBehaviour {
 
     private void Update()
     {
+        chunkPosition = transform.position;
         if (Working) return;
 
         if (dirty)
@@ -114,7 +118,23 @@ public class Chunk : MonoBehaviour {
                     {
                         if(map[x, y, z] > 0)
                         {
-                            addFace(x, y, z, FaceDir.Top, i);
+                            if(isBlockTransparent(x, y , z+1, i))
+                                addFace(x, y, z, FaceDir.Front, i);
+
+                            if(isBlockTransparent(x, y, z-1, i))
+                                addFace(x, y, z, FaceDir.Back, i);
+
+                            if(isBlockTransparent(x-1, y, z, i))
+                                addFace(x, y, z, FaceDir.Left, i);
+
+                            if(isBlockTransparent(x+1, y, z, i))
+                                addFace(x, y, z, FaceDir.Right, i);
+
+                            if(isBlockTransparent(x, y + 1, z, i))
+                                addFace(x, y, z, FaceDir.Top, i);
+
+                            if(isBlockTransparent(x, y - 1, z, i))
+                                addFace(x, y, z, FaceDir.Bottom, i);
                         }
                     }
                 }
@@ -126,6 +146,7 @@ public class Chunk : MonoBehaviour {
 
             m.vertices = verts[i].ToArray();
             m.triangles = triangles[i].ToArray();
+            m.uv = UVs[i].ToArray();
 
             m.RecalculateNormals();
             meshes[i].mesh = m;
@@ -155,6 +176,11 @@ public class Chunk : MonoBehaviour {
         {
             colors.Add(new List<Color>());
         }
+
+        float blockWidth = 1f / 16f;
+        int xOffset = 1;
+        int yOffset = 15;
+
         if (dir == FaceDir.Top)
         {
             triangles[chunkID].Add(verts[chunkID].Count + 0);
@@ -170,17 +196,145 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
 
-            UVs[chunkID].Add(new Vector2(0, 0));
-            UVs[chunkID].Add(new Vector2(1, 0));
-            UVs[chunkID].Add(new Vector2(1, 1));
-            UVs[chunkID].Add(new Vector2(0, 1));
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
         }
+        else if (dir == FaceDir.Bottom)
+        {
+            triangles[chunkID].Add(verts[chunkID].Count + 1);
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+            triangles[chunkID].Add(verts[chunkID].Count + 3);
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+
+            verts[chunkID].Add(new Vector3(x + 0, y + 0, z + 0));
+            verts[chunkID].Add(new Vector3(x + 1, y + 0, z + 0));
+            verts[chunkID].Add(new Vector3(x + 1, y + 0, z + 1));
+            verts[chunkID].Add(new Vector3(x + 0, y + 0, z + 1));
+
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+        }
+        else if (dir == FaceDir.Front)
+        {
+            triangles[chunkID].Add(verts[chunkID].Count + 1);
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+            triangles[chunkID].Add(verts[chunkID].Count + 3);
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+
+            verts[chunkID].Add(new Vector3(x + 0, y + 0, z + 1));
+            verts[chunkID].Add(new Vector3(x + 1, y + 0, z + 1));
+            verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
+            verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
+
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+        }
+        else if (dir == FaceDir.Back)
+        {
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+            triangles[chunkID].Add(verts[chunkID].Count + 1);
+
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+            triangles[chunkID].Add(verts[chunkID].Count + 3);
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+
+            verts[chunkID].Add(new Vector3(x + 0, y + 0, z + 0));
+            verts[chunkID].Add(new Vector3(x + 1, y + 0, z + 0));
+            verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 0));
+            verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 0));
+
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+        }
+        else if (dir == FaceDir.Right)
+        {
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+            triangles[chunkID].Add(verts[chunkID].Count + 1);
+
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+            triangles[chunkID].Add(verts[chunkID].Count + 3);
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+
+            verts[chunkID].Add(new Vector3(x + 1, y + 0, z + 0));
+            verts[chunkID].Add(new Vector3(x + 1, y + 0, z + 1));
+            verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
+            verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 0));
+
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+        }
+        else if (dir == FaceDir.Left)
+        {
+            triangles[chunkID].Add(verts[chunkID].Count + 1);
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+
+            triangles[chunkID].Add(verts[chunkID].Count + 2);
+            triangles[chunkID].Add(verts[chunkID].Count + 3);
+            triangles[chunkID].Add(verts[chunkID].Count + 0);
+
+            verts[chunkID].Add(new Vector3(x + 0, y + 0, z + 0));
+            verts[chunkID].Add(new Vector3(x + 0, y + 0, z + 1));
+            verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
+            verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 0));
+
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+        }
+    }
+
+    public bool isBlockTransparent(int x, int y, int z, int chunkID)
+    {
+        if(x >= Width || z >= Width || y >= Height || x < 0 || y < 0 || z < 0)
+        {
+            //return GetBlock(new Vector3(x, y, z) + chunkPosition) == 0;
+            return true;
+        }else
+        {
+            return maps[chunkID][x, y, z] == 0;
+        }
+    }
+
+    public byte GetBlock(Vector3 worldPos)
+    {
+        Chunk c = GetChunk(worldPos);
+
+        int chunkID =(int) (worldPos.y / Height);
+
+        Vector3 localPosition = worldPos - c.chunkPosition;
+        if (localPosition.y < 0) return 0;
+        else if (localPosition.y >= Height * ChunkStack) return 0;
+
+        int x = (int)localPosition.x;
+        int y = (int)localPosition.y;
+        int z = (int)localPosition.z;
+        return c.maps[chunkID][x,y,z];
     }
 
     public static Chunk GetChunk(Vector3 Position)
     {
         int x = Mathf.FloorToInt(Position.x / Width) * Width;
-        int y = Mathf.FloorToInt(Position.y / Width) * Width;
+        int y = 0;
         int z = Mathf.FloorToInt(Position.z / Width) * Width;
 
         Vector3 cPos = new Vector3(x, y, z);
@@ -194,7 +348,7 @@ public class Chunk : MonoBehaviour {
     public static bool ChunkExists(Vector3 Position)
     {
         int x = Mathf.FloorToInt(Position.x / Width) * Width;
-        int y = Mathf.FloorToInt(Position.y / Width) * Width;
+        int y = 0;
         int z = Mathf.FloorToInt(Position.z / Width) * Width;
 
         Vector3 cPos = new Vector3(x, y, z);
