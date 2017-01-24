@@ -27,7 +27,7 @@ public class Chunk : MonoBehaviour {
 
     public bool dirty = true;
     public bool lightDirty = true;
-    bool calculatedMap = false;
+    public bool calculatedMap = false;
 
     private void Awake()
     {
@@ -41,6 +41,7 @@ public class Chunk : MonoBehaviour {
             meshes.Add(gO.AddComponent<MeshFilter>());
             
             MeshRenderer mr = gO.AddComponent<MeshRenderer>();
+            gO.AddComponent<MeshCollider>();
             gO.transform.position = new Vector3(transform.position.x, i * Height, transform.position.z);
             gO.transform.SetParent(transform);
 
@@ -49,33 +50,10 @@ public class Chunk : MonoBehaviour {
         heightMap = new byte[Width, Width];
     }
 
-    private void Update()
-    {
-        chunkPosition = transform.position;
-        if (Working) return;
-
-        if (dirty)
-        {
-            Working = true;
-            if (!calculatedMap)
-            {
-                calculateMap();
-            }
-            calculateMesh();
-            dirty = false;
-        }
-
-        if (lightDirty)
-        {
-            Working = true;
-            calculateLight();
-            lightDirty = false;
-        }
-    }
-
     public void calculateMap()
     {
         Working = false;
+        System.Random r = new System.Random();
 
         for(int i = 0; i < ChunkStack; i++) {
             byte[,,] map = new byte[Width, Height, Width];
@@ -87,9 +65,17 @@ public class Chunk : MonoBehaviour {
                     for (int z = 0; z < Width; z++)
                     {
                         int worldYPos = i * Height + y;
-                        if(worldYPos < 5)
+                        if(worldYPos < Height + 5)
                         {
                             map[x, y, z] = 1;
+                        }
+                        else if (worldYPos == Height + 5 && r.Next(0, 100) == 1)
+                        {
+                            map[x, y, z] = 2;
+                        }
+                        else if (worldYPos == Height + 5 && r.Next(0, 100) == 1)
+                        {
+                            map[x, y, z] = 3;
                         }
                     }
                 }
@@ -150,7 +136,11 @@ public class Chunk : MonoBehaviour {
 
             m.RecalculateNormals();
             meshes[i].mesh = m;
+            MeshCollider mc = meshes[i].gameObject.GetComponent<MeshCollider>();
+            mc.sharedMesh = m;
+            mc.inflateMesh = true;
         }
+        dirty = false;
     }
 
     public void calculateLight()
@@ -177,9 +167,16 @@ public class Chunk : MonoBehaviour {
             colors.Add(new List<Color>());
         }
 
+        byte blockid = (byte) (maps[chunkID][x, y, z] - 1);
         float blockWidth = 1f / 16f;
-        int xOffset = 1;
-        int yOffset = 15;
+        int xSide = Block.blocks[blockid].textureXSide;
+        int ySide = Block.blocks[blockid].textureYSide;
+
+        int xTop = Block.blocks[blockid].textureXTop;
+        int yTop = Block.blocks[blockid].textureYTop;
+
+        int xBottom = Block.blocks[blockid].textureXBottom;
+        int yBottom = Block.blocks[blockid].textureYBottom;
 
         if (dir == FaceDir.Top)
         {
@@ -196,10 +193,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
 
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xTop) * blockWidth, (0 + yTop) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xTop) * blockWidth, (0 + yTop) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xTop) * blockWidth, (1 + yTop) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xTop) * blockWidth, (1 + yTop) * blockWidth));
         }
         else if (dir == FaceDir.Bottom)
         {
@@ -216,10 +213,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 0, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 0, z + 1));
 
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xBottom) * blockWidth, (0 + yBottom) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xBottom) * blockWidth, (0 + yBottom) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xBottom) * blockWidth, (1 + yBottom) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xBottom) * blockWidth, (1 + yBottom) * blockWidth));
         }
         else if (dir == FaceDir.Front)
         {
@@ -236,10 +233,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
 
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (0 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (0 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (1 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (1 + ySide) * blockWidth));
         }
         else if (dir == FaceDir.Back)
         {
@@ -256,10 +253,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 0));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 0));
 
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (0 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (0 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (1 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (1 + ySide) * blockWidth));
         }
         else if (dir == FaceDir.Right)
         {
@@ -276,10 +273,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 0));
 
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (0 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (0 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (1 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (1 + ySide) * blockWidth));
         }
         else if (dir == FaceDir.Left)
         {
@@ -296,10 +293,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 0));
 
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (0 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xOffset) * blockWidth, (1 + yOffset) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (0 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (0 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (1 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (1 + ySide) * blockWidth));
         }
     }
 
@@ -313,6 +310,24 @@ public class Chunk : MonoBehaviour {
         {
             return maps[chunkID][x, y, z] == 0;
         }
+    }
+
+    public static byte GetWorldBlock(Vector3 pos)
+    {
+        Chunk c = GetChunk(pos);
+        if (c == null) return 1;
+
+        int chunkID = Mathf.FloorToInt(pos.y / Height);
+        if (chunkID >= ChunkStack) return 0;
+
+        Vector3 localPosition = pos - c.chunkPosition;
+
+        int x = (int)localPosition.x;
+        int y = (int)localPosition.y - (chunkID * Height);
+        int z = (int)localPosition.z;
+
+        byte block = c.maps[chunkID][x, y, z];
+        return block;
     }
 
     public byte GetBlock(Vector3 worldPos)
@@ -408,4 +423,53 @@ public enum FaceDir
     Left,
     Front,
     Back
+}
+
+public class Block
+{
+    public static List<Block> blocks = new List<Block>();
+
+    public string displayName;
+    public string name;
+    public byte id;
+
+    public byte textureX;
+    public byte textureY;
+
+    public byte textureXTop;
+    public byte textureYTop;
+
+    public byte textureXBottom;
+    public byte textureYBottom;
+
+    public byte textureXSide;
+    public byte textureYSide;
+
+    public Block(string name, string displayName, byte tX, byte tY)
+    {
+        id = (byte)(blocks.Count + 1);
+        this.name = name;
+        this.displayName = displayName;
+        textureXBottom = tX;
+        textureXSide = tX;
+        textureXTop = tX;
+
+        textureYBottom = tY;
+        textureYSide = tY;
+        textureYTop = tY;
+    }
+
+    public Block(string name, string displayName, byte topX, byte topY, byte sideX, byte sideY, byte bottomX, byte bottomY)
+    {
+        id = (byte)(blocks.Count + 1);
+        this.name = name;
+        this.displayName = displayName;
+        textureXBottom = bottomX;
+        textureXSide = sideX;
+        textureXTop = topX;
+
+        textureYBottom = bottomY;
+        textureYSide = sideY;
+        textureYTop = topY;
+    }
 }

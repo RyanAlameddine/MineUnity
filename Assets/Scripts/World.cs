@@ -13,6 +13,10 @@ public class World : MonoBehaviour {
 
     public void Awake()
     {
+        Block.blocks.Add(new Block("dirt", "Dirt Block", 2, 15));
+        Block.blocks.Add(new Block("stone", "Stone Block", 1, 15));
+        Block.blocks.Add(new Block("grassblock", "Grass Block", 7, 2, 3, 15, 2, 15));
+
         materials = material;
         me = transform;
     }
@@ -30,6 +34,41 @@ public class World : MonoBehaviour {
                 }
 
                 Chunk.AddChunk(cPos);
+            }
+        }
+        Tick();
+    }
+
+    void Tick()
+    {
+        if (Chunk.Working) return;
+
+        Dictionary<Vector3, Chunk> chunkList = Chunk.Chunks;
+
+        foreach(var c in chunkList)
+        {
+            Chunk chunk = c.Value;
+            Vector3 position = c.Key;
+
+            chunk.chunkPosition = position;
+
+            if (chunk.dirty)
+            {
+                Chunk.Working = true;
+                if (!chunk.calculatedMap)
+                {
+                    chunk.calculateMap();
+                }
+                chunk.calculateMesh();
+
+                return;
+            }
+
+            if (chunk.lightDirty)
+            {
+                Chunk.Working = true;
+                chunk.calculateLight();
+                chunk.lightDirty = false;
             }
         }
     }
