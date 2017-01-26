@@ -23,11 +23,15 @@ public class World : MonoBehaviour {
 
     public void Update()
     {
-        for (int x = -(viewRange / 2); x < (viewRange / 2); x++)
+        Vector3 cameraPos = Camera.main.transform.position;
+        for (int x = (int)cameraPos.x - (viewRange * Chunk.Width); x < (viewRange * Chunk.Width) + (int)cameraPos.x; x += viewRange)
         {
-            for (int z = -(viewRange / 2); z < (viewRange / 2); z++)
+            for (int z = (int)cameraPos.z - (viewRange * Chunk.Width); z < (viewRange * Chunk.Width) + (int)cameraPos.z; z += viewRange)
             {
-                Vector3 cPos = new Vector3(x * Chunk.Width, 0, z * Chunk.Width);
+                int xx = Mathf.FloorToInt(x / Chunk.Width) * Chunk.Width;
+                int zz = Mathf.FloorToInt(z / Chunk.Width) * Chunk.Width;
+
+                Vector3 cPos = new Vector3(xx, 0, zz);
                 if (Chunk.ChunkExists(cPos))
                 {
                     continue;
@@ -47,8 +51,17 @@ public class World : MonoBehaviour {
 
         foreach(var c in chunkList)
         {
+
             Chunk chunk = c.Value;
             Vector3 position = c.Key;
+
+            if (Vector3.Distance(Camera.main.transform.position, position) > (Chunk.Width * viewRange / 2) + (Chunk.Width * 3))
+            {
+                chunk.gameObject.SetActive(false);
+            }else if(!chunk.gameObject.activeInHierarchy)
+            {
+                chunk.gameObject.SetActive(true);
+            }
 
             chunk.chunkPosition = position;
 

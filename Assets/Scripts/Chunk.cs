@@ -69,11 +69,11 @@ public class Chunk : MonoBehaviour {
                         {
                             map[x, y, z] = 1;
                         }
-                        else if (worldYPos == Height + 5 && r.Next(0, 100) == 1)
+                        else if (worldYPos == Height + 5 && r.Next(0, 20) == 1)
                         {
                             map[x, y, z] = 2;
                         }
-                        else if (worldYPos == Height + 5 && r.Next(0, 100) == 1)
+                        else if (worldYPos == Height + 5 && r.Next(0, 20) == 1)
                         {
                             map[x, y, z] = 3;
                         }
