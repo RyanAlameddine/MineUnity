@@ -20,10 +20,38 @@ public class BlockController : MonoBehaviour {
             Vector3 worldblockPos = hit.point - (hit.normal / 2);
 
             Vector3 blockPos = new Vector3(Mathf.FloorToInt(worldblockPos.x), Mathf.FloorToInt(worldblockPos.y), Mathf.FloorToInt(worldblockPos.z));
+
+            Vector3 worldblockAddPos = hit.point + (hit.normal / 2);
+            Vector3 blockAddPos = new Vector3(Mathf.FloorToInt(worldblockAddPos.x), Mathf.FloorToInt(worldblockAddPos.y), Mathf.FloorToInt(worldblockAddPos.z));
+
             BlockSelector.transform.position = blockPos;
+            if (Input.GetMouseButtonDown(1))
+            {
+                Chunk c = Chunk.SetWorldBlock(blockAddPos, 3);
+                if (c != null)
+                {
+                    c.dirty = true;
+                    //Vector3 localPos = blockPos - c.chunkPosition;
+                }
+            }
             if (Input.GetMouseButtonDown(0))
             {
-                
+                byte b = Chunk.GetWorldBlock(blockPos);
+
+                if(b > 0)
+                {
+                    Block selectedBlock = Block.blocks[Chunk.GetWorldBlock(blockPos) - 1];
+                    if(selectedBlock.name == "bedrock")
+                    {
+                        return;
+                    }
+                }
+                Chunk c = Chunk.SetWorldBlock(blockPos, 0);
+                if(c != null)
+                {
+                    c.dirty = true;
+                    //Vector3 localPos = blockPos - c.chunkPosition;
+                }
             }
         }else
         {

@@ -7,6 +7,7 @@ public class World : MonoBehaviour {
     public Material material;
     public static Material materials;
     public static Transform me;
+    bool oneDirty;
 
     //render Distance
     public int viewRange = 10;
@@ -15,7 +16,8 @@ public class World : MonoBehaviour {
     {
         Block.blocks.Add(new Block("dirt", "Dirt Block", 2, 15));
         Block.blocks.Add(new Block("stone", "Stone Block", 1, 15));
-        Block.blocks.Add(new Block("grassblock", "Grass Block", 7, 2, 3, 15, 2, 15));
+        Block.blocks.Add(new Block("grassblock", "Grass Block", 7, 2, 3, 15, 2, 15).SetHasTickEvent(true));
+        Block.blocks.Add(new Block("bedrock", "Bedrock", 1, 14));
 
         materials = material;
         me = transform;
@@ -65,15 +67,22 @@ public class World : MonoBehaviour {
 
             chunk.chunkPosition = position;
 
+            if(Mathf.FloorToInt(Time.time) % 5 == 0)
+            {
+                c.Value.TickUpdate();
+            }
+
             if (chunk.dirty)
             {
+                oneDirty = true;
                 Chunk.Working = true;
                 if (!chunk.calculatedMap)
                 {
+                    chunk.calculatedMap = true;
                     chunk.calculateMap();
                 }
                 chunk.calculateMesh();
-
+                chunk.dirty = false;
                 return;
             }
 
@@ -84,5 +93,11 @@ public class World : MonoBehaviour {
                 chunk.lightDirty = false;
             }
         }
+        if (!oneDirty)
+        {
+            PlayerMovement.gravity = 20f;
+        }
+        else
+            oneDirty = false;
     }
 }

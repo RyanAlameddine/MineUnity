@@ -10,6 +10,7 @@ public class Chunk : MonoBehaviour {
     public Material material;
 
 	public static Dictionary<Vector3, Chunk> Chunks = new Dictionary<Vector3, Chunk> ();
+	public Dictionary<Vector3, byte> EventBlocks = new Dictionary<Vector3, byte> ();
 
     public static bool Working = false;
 
@@ -65,22 +66,63 @@ public class Chunk : MonoBehaviour {
                     for (int z = 0; z < Width; z++)
                     {
                         int worldYPos = i * Height + y;
-                        if(worldYPos < Height + 5)
+                        Vector3 pos = new Vector3(x, y, z);
+                        if(worldYPos == 0)
                         {
-                            map[x, y, z] = 1;
+                            SetWorldBlock(pos, 4);
+                        }else if(worldYPos < 3 && r.Next(0, 3) == 1)
+                        {
+                            SetWorldBlock(pos, 4);
+                        }
+                        else if(worldYPos < Height + 5)
+                        {
+                            SetWorldBlock(pos, 1);
                         }
                         else if (worldYPos == Height + 5 && r.Next(0, 20) == 1)
                         {
-                            map[x, y, z] = 2;
+                            SetWorldBlock(pos, 2);
                         }
                         else if (worldYPos == Height + 5 && r.Next(0, 20) == 1)
                         {
-                            map[x, y, z] = 3;
+                            SetWorldBlock(pos, 3);
                         }
                     }
                 }
             }
             maps[i] = map;
+        }
+    }
+
+    public void TickUpdate()
+    {
+        Dictionary<Vector3, byte> chunkList = EventBlocks;
+
+        foreach (var result in chunkList)
+        {
+            Vector3 worldPos = result.Key;
+            System.Random r = new System.Random();
+            byte block = result.Value;
+            if (block == 3 && r.Next(0, 2) == 0)
+            {
+                Vector3[] positions = new Vector3[4]
+                {
+                worldPos + new Vector3(0, 0, 1),
+                worldPos + new Vector3(1, 0, 0),
+                worldPos + new Vector3(0, 0, -1),
+                worldPos + new Vector3(-1, 0, 0)
+                };
+                byte[] blocksAround = new byte[4]
+                {
+                GetWorldBlock(positions[0]),
+                GetWorldBlock(positions[1]),
+                GetWorldBlock(positions[2]),
+                GetWorldBlock(positions[3]),
+                };
+
+                int index = r.Next(0, 4);
+                if (blocksAround[index] == 1)
+                    SetWorldBlock(positions[index], 3);
+            }
         }
     }
 
@@ -140,12 +182,37 @@ public class Chunk : MonoBehaviour {
             mc.sharedMesh = m;
             mc.inflateMesh = true;
         }
-        dirty = false;
     }
 
     public void calculateLight()
     {
         Working = false;
+    }
+
+    public static Chunk SetWorldBlock(Vector3 pos, byte blockID)
+    {
+        Chunk c = Chunk.GetChunk(pos);
+        if (c == null) return null;
+
+        Vector3 localPos = pos - c.chunkPosition;
+
+        int chunkID = Mathf.FloorToInt(localPos.y / Height);
+        if(chunkID >= ChunkStack || chunkID < 0)
+        {
+            return null;
+        }
+
+        int x = (int)localPos.x;
+        int y = (int)localPos.y - (chunkID * Height);
+        int z = (int)localPos.z;
+
+        c.maps[chunkID][x, y, z] = blockID;
+
+        if(Block.blocks[blockID - 1].hasTickEvent)
+        {
+            c.EventBlocks.Add(pos, blockID);
+        }
+        return c;
     }
 
     public void addFace(int x, int y, int z, FaceDir dir, int chunkID)
@@ -304,8 +371,8 @@ public class Chunk : MonoBehaviour {
     {
         if(x >= Width || z >= Width || y >= Height || x < 0 || y < 0 || z < 0)
         {
-            //return GetBlock(new Vector3(x, y, z) + chunkPosition) == 0;
             return true;
+            //return GetWorldBlock(new Vector3(x, y + (chunkID * Height), z) + chunkPosition) == 0;
         }else
         {
             return maps[chunkID][x, y, z] == 0;
@@ -318,7 +385,7 @@ public class Chunk : MonoBehaviour {
         if (c == null) return 1;
 
         int chunkID = Mathf.FloorToInt(pos.y / Height);
-        if (chunkID >= ChunkStack) return 0;
+        //if (chunkID >= ChunkStack || chunkID < 10) return 0;
 
         Vector3 localPosition = pos - c.chunkPosition;
 
@@ -343,7 +410,7 @@ public class Chunk : MonoBehaviour {
         int x = (int)localPosition.x;
         int y = (int)localPosition.y;
         int z = (int)localPosition.z;
-        return c.maps[chunkID][x,y,z];
+        return c.maps[chunkID][x, y, z];
     }
 
     public static Chunk GetChunk(Vector3 Position)
@@ -445,6 +512,8 @@ public class Block
     public byte textureXSide;
     public byte textureYSide;
 
+    public bool hasTickEvent = false;
+
     public Block(string name, string displayName, byte tX, byte tY)
     {
         id = (byte)(blocks.Count + 1);
@@ -471,5 +540,12 @@ public class Block
         textureYBottom = bottomY;
         textureYSide = sideY;
         textureYTop = topY;
+    }
+
+    public Block SetHasTickEvent(bool v)
+    {
+        hasTickEvent = true;
+
+        return this;
     }
 }
