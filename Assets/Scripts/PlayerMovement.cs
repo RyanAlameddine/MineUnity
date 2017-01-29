@@ -9,6 +9,8 @@ public class PlayerMovement : MonoBehaviour
     private void Awake()
     {
         cc = GetComponent<CharacterController>();
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
     public float speed = 6.0F;
     public float jumpSpeed = 8.0F;

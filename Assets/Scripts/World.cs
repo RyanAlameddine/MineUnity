@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 public class World : MonoBehaviour {
@@ -18,6 +19,8 @@ public class World : MonoBehaviour {
         Block.blocks.Add(new Block("stone", "Stone Block", 1, 15));
         Block.blocks.Add(new Block("grassblock", "Grass Block", 7, 2, 3, 15, 2, 15).SetHasTickEvent(true));
         Block.blocks.Add(new Block("bedrock", "Bedrock", 1, 14));
+
+        StartCoroutine(threadProcessor());
 
         materials = material;
         me = transform;
@@ -45,6 +48,8 @@ public class World : MonoBehaviour {
         Tick();
     }
 
+    public static List<Thread> threads = new List<Thread>();
+
     void Tick()
     {
         if (Chunk.Working) return;
@@ -67,9 +72,17 @@ public class World : MonoBehaviour {
 
             chunk.chunkPosition = position;
 
-            if(Mathf.FloorToInt(Time.time) % 5 == 0)
+            if(Mathf.FloorToInt(Time.time) % 10 == 0)
             {
-                c.Value.TickUpdate();
+                if (chunk.runTick == false)
+                {
+                    Thread t = new Thread(c.Value.TickUpdate);
+                    threads.Add(t);
+                    chunk.runTick = true;
+                }
+            }else
+            {
+                chunk.runTick = false;
             }
 
             if (chunk.dirty)
@@ -82,6 +95,7 @@ public class World : MonoBehaviour {
                     chunk.calculateMap();
                 }
                 chunk.calculateMesh();
+                
                 chunk.dirty = false;
                 return;
             }
@@ -99,5 +113,22 @@ public class World : MonoBehaviour {
         }
         else
             oneDirty = false;
+    }
+
+    IEnumerator threadProcessor()
+    {
+        if (threads.Count > 0)
+        {
+            threads[0].Start();
+            while (threads[0].IsAlive)
+            {
+                yield return 0;
+            }
+            threads.RemoveAt(0);
+        }
+
+        yield return 0;
+
+        StartCoroutine(threadProcessor());
     }
 }

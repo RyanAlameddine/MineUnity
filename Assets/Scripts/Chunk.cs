@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using UnityEngine;
 
 public class Chunk : MonoBehaviour {
@@ -13,6 +14,7 @@ public class Chunk : MonoBehaviour {
 	public Dictionary<Vector3, byte> EventBlocks = new Dictionary<Vector3, byte> ();
 
     public static bool Working = false;
+    public bool runTick = false;
 
     public Vector3 chunkPosition;
 
@@ -27,8 +29,19 @@ public class Chunk : MonoBehaviour {
     public List<List<Color>> colors = new List<List<Color>>();
 
     public bool dirty = true;
+    public bool dirtyCollider = true;
     public bool lightDirty = true;
     public bool calculatedMap = false;
+
+    private static readonly System.Random random = new System.Random();
+    private static readonly object syncLock = new object();
+    public static int RandomNumber(int min, int max)
+    {
+        lock (syncLock)
+        { // synchronize
+            return random.Next(min, max);
+        }
+    }
 
     private void Awake()
     {
@@ -54,7 +67,6 @@ public class Chunk : MonoBehaviour {
     public void calculateMap()
     {
         Working = false;
-        System.Random r = new System.Random();
 
         for(int i = 0; i < ChunkStack; i++) {
             byte[,,] map = new byte[Width, Height, Width];
@@ -66,25 +78,29 @@ public class Chunk : MonoBehaviour {
                     for (int z = 0; z < Width; z++)
                     {
                         int worldYPos = i * Height + y;
-                        Vector3 pos = new Vector3(x, y, z);
-                        if(worldYPos == 0)
+                        Vector3 pos = new Vector3(x, worldYPos, z) + transform.position;
+                        if(worldYPos <= Height + 5)
                         {
-                            SetWorldBlock(pos, 4);
-                        }else if(worldYPos < 3 && r.Next(0, 3) == 1)
-                        {
-                            SetWorldBlock(pos, 4);
+                            map[x, y, z] = 1;
                         }
-                        else if(worldYPos < Height + 5)
+
+                        if (worldYPos == Height + 5 && Random.Range(0, 20) == 1)
                         {
-                            SetWorldBlock(pos, 1);
+                            map[x, y, z] = 2;
                         }
-                        else if (worldYPos == Height + 5 && r.Next(0, 20) == 1)
+                        if (worldYPos == Height + 5 && Random.Range(0, 20) == 1)
                         {
-                            SetWorldBlock(pos, 2);
+                            map[x, y, z] = 3;
+                            EventBlocks.Add(pos, 3);
                         }
-                        else if (worldYPos == Height + 5 && r.Next(0, 20) == 1)
+
+                        if (worldYPos == 0)
                         {
-                            SetWorldBlock(pos, 3);
+                            map[x, y, z] = 4;
+                        }
+                        else if (worldYPos < 3 && Random.Range(0, 3) == 1)
+                        {
+                            map[x, y, z] = 4;
                         }
                     }
                 }
@@ -95,15 +111,21 @@ public class Chunk : MonoBehaviour {
 
     public void TickUpdate()
     {
-        Dictionary<Vector3, byte> chunkList = EventBlocks;
+        Dictionary<Vector3, byte> chunkList = new Dictionary<Vector3, byte>(EventBlocks);
 
         foreach (var result in chunkList)
         {
             Vector3 worldPos = result.Key;
-            System.Random r = new System.Random();
             byte block = result.Value;
-            if (block == 3 && r.Next(0, 2) == 0)
+            if (block == 3 && RandomNumber(0,2) == 0)
             {
+                byte blockAbove = GetWorldBlock(worldPos + new Vector3(0, 1, 0));
+
+                if (blockAbove > 0)
+                {
+                    SetWorldBlock(worldPos, 1, true);
+                    continue;
+                }
                 Vector3[] positions = new Vector3[4]
                 {
                 worldPos + new Vector3(0, 0, 1),
@@ -119,9 +141,12 @@ public class Chunk : MonoBehaviour {
                 GetWorldBlock(positions[3]),
                 };
 
-                int index = r.Next(0, 4);
+                int index = RandomNumber(0, 4);
                 if (blocksAround[index] == 1)
-                    SetWorldBlock(positions[index], 3);
+                {
+                    SetWorldBlock(positions[index], 3, true);
+                    
+                }
             }
         }
     }
@@ -178,10 +203,12 @@ public class Chunk : MonoBehaviour {
 
             m.RecalculateNormals();
             meshes[i].mesh = m;
-            MeshCollider mc = meshes[i].gameObject.GetComponent<MeshCollider>();
-            mc.sharedMesh = m;
-            mc.inflateMesh = true;
+            if (dirtyCollider)
+            {
+                meshes[i].gameObject.GetComponent<MeshCollider>().sharedMesh = m;
+            }
         }
+        dirtyCollider = false;
     }
 
     public void calculateLight()
@@ -192,7 +219,14 @@ public class Chunk : MonoBehaviour {
     public static Chunk SetWorldBlock(Vector3 pos, byte blockID)
     {
         Chunk c = Chunk.GetChunk(pos);
-        if (c == null) return null;
+        if (Equals(c, null)) return null;
+
+        byte oldBlock = GetWorldBlock(pos);
+
+        if (oldBlock == 0 || blockID != oldBlock && blockID == 0)
+        {
+            c.dirtyCollider = true;
+        }
 
         Vector3 localPos = pos - c.chunkPosition;
 
@@ -208,12 +242,20 @@ public class Chunk : MonoBehaviour {
 
         c.maps[chunkID][x, y, z] = blockID;
 
-        if(Block.blocks[blockID - 1].hasTickEvent)
+        if (blockID != 0 && Block.blocks[blockID - 1].hasTickEvent & !c.EventBlocks.ContainsKey(pos))
         {
             c.EventBlocks.Add(pos, blockID);
         }
         return c;
     }
+
+    public static Chunk SetWorldBlock(Vector3 pos, byte blockID, bool setDirty)
+    {
+        Chunk c = Chunk.GetChunk(pos);
+        c.dirty = setDirty;
+        return SetWorldBlock(pos, blockID);
+    }
+
 
     public void addFace(int x, int y, int z, FaceDir dir, int chunkID)
     {
@@ -382,7 +424,7 @@ public class Chunk : MonoBehaviour {
     public static byte GetWorldBlock(Vector3 pos)
     {
         Chunk c = GetChunk(pos);
-        if (c == null) return 1;
+        if (Equals(c, null)) return 1;
 
         int chunkID = Mathf.FloorToInt(pos.y / Height);
         //if (chunkID >= ChunkStack || chunkID < 10) return 0;
