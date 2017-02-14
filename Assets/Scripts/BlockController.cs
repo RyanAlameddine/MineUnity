@@ -27,7 +27,7 @@ public class BlockController : MonoBehaviour {
             BlockSelector.transform.position = blockPos;
             if (Input.GetMouseButtonDown(1))
             {
-                Chunk c = Chunk.SetWorldBlock(blockAddPos, 3);
+                Chunk c = Chunk.SetWorldBlock(blockAddPos, World.getBlockID("chest"));
                 if (c != null)
                 {
                     c.dirty = true;
@@ -40,8 +40,8 @@ public class BlockController : MonoBehaviour {
 
                 if(b > 0)
                 {
-                    Block selectedBlock = Block.blocks[Chunk.GetWorldBlock(blockPos) - 1];
-                    if(selectedBlock.name == "bedrock")
+                    Block selectedBlock = World.blocks[b - 1];
+                    if (selectedBlock.name == "bedrock")
                     {
                         return;
                     }

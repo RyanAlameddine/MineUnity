@@ -19,6 +19,8 @@ public class Chunk : MonoBehaviour {
     public Vector3 chunkPosition;
 
     public List<byte[,,]> maps = new List<byte[,,]>();
+
+    public List<GameObject>[] blockEntities;
     public byte[,] heightMap = new byte[Width, Width];
 
     public List<MeshFilter> meshes = new List<MeshFilter>();
@@ -43,6 +45,8 @@ public class Chunk : MonoBehaviour {
         }
     }
 
+    public bool canGenerateMesh = false;
+
     private void Awake()
     {
         chunkPosition = transform.position;
@@ -62,6 +66,36 @@ public class Chunk : MonoBehaviour {
             mr.material = World.materials;
         }
         heightMap = new byte[Width, Width];
+        blockEntities = new List<GameObject>[ChunkStack];
+
+        for(int i = 0; i < ChunkStack; i++)
+        {
+            blockEntities[i] = new List<GameObject>();
+        }
+    }
+
+    private void Update()
+    {
+        if (canGenerateMesh) return;
+
+        Chunk right = GetChunk(chunkPosition + new Vector3(Width, 0, 0));
+        Chunk left = GetChunk(chunkPosition + new Vector3(-Width, 0, 0));
+
+        Chunk back = GetChunk(chunkPosition + new Vector3(0, 0, Width));
+        Chunk front = GetChunk(chunkPosition + new Vector3(0, 0, -Width));
+
+        Chunk up = GetChunk(chunkPosition + new Vector3(0, Height, 0));
+        Chunk down = GetChunk(chunkPosition + new Vector3(0, -Height, 0));
+
+        if (right != null && right.calculatedMap &&
+            left != null && left.calculatedMap &&
+            back != null && back.calculatedMap &&
+            front != null && front.calculatedMap &&
+            up != null && up.calculatedMap &&
+            down != null && down.calculatedMap)
+        {
+            canGenerateMesh = true;
+        }
     }
 
     public void calculateMap()
@@ -81,26 +115,26 @@ public class Chunk : MonoBehaviour {
                         Vector3 pos = new Vector3(x, worldYPos, z) + transform.position;
                         if(worldYPos <= Height + 5)
                         {
-                            map[x, y, z] = 1;
+                            map[x, y, z] = World.getBlockID("dirt");
                         }
 
                         if (worldYPos == Height + 5 && Random.Range(0, 20) == 1)
                         {
-                            map[x, y, z] = 2;
+                            map[x, y, z] = World.getBlockID("stone");
                         }
                         if (worldYPos == Height + 5 && Random.Range(0, 20) == 1)
                         {
-                            map[x, y, z] = 3;
-                            EventBlocks.Add(pos, 3);
+                            map[x, y, z] = World.getBlockID("grass");
+                            EventBlocks.Add(pos, World.getBlockID("grass"));
                         }
 
                         if (worldYPos == 0)
                         {
-                            map[x, y, z] = 4;
+                            map[x, y, z] = World.getBlockID("bedrock");
                         }
                         else if (worldYPos < 3 && Random.Range(0, 3) == 1)
                         {
-                            map[x, y, z] = 4;
+                            map[x, y, z] = World.getBlockID("bedrock");
                         }
                     }
                 }
@@ -117,13 +151,12 @@ public class Chunk : MonoBehaviour {
         {
             Vector3 worldPos = result.Key;
             byte block = result.Value;
-            if (block == 3 && RandomNumber(0,2) == 0)
+            if (block == World.getBlockID("grass") && RandomNumber(0,2) == 0)
             {
                 byte blockAbove = GetWorldBlock(worldPos + new Vector3(0, 1, 0));
-
                 if (blockAbove > 0)
                 {
-                    SetWorldBlock(worldPos, 1, true);
+                    SetWorldBlock(worldPos, World.getBlockID("dirt"), true);
                     continue;
                 }
                 Vector3[] positions = new Vector3[4]
@@ -142,9 +175,9 @@ public class Chunk : MonoBehaviour {
                 };
 
                 int index = RandomNumber(0, 4);
-                if (blocksAround[index] == 1)
+                if (blocksAround[index] == World.getBlockID("dirt"))
                 {
-                    SetWorldBlock(positions[index], 3, true);
+                    SetWorldBlock(positions[index], World.getBlockID("grass"), true);
                     
                 }
             }
@@ -161,6 +194,10 @@ public class Chunk : MonoBehaviour {
         Working = false;
         for (int i = 0; i < ChunkStack; i++)
         {
+            foreach(GameObject go in blockEntities[i])
+            {
+                Destroy(go);
+            }
             byte[,,] map = maps[i];
 
             for (int x = 0; x < Width; x++)
@@ -171,23 +208,34 @@ public class Chunk : MonoBehaviour {
                     {
                         if(map[x, y, z] > 0)
                         {
-                            if(isBlockTransparent(x, y , z+1, i))
-                                addFace(x, y, z, FaceDir.Front, i);
+                            Block b = World.blocks[map[x, y, z] - 1];
 
-                            if(isBlockTransparent(x, y, z-1, i))
-                                addFace(x, y, z, FaceDir.Back, i);
+                            if (b.isEntityBlock)
+                            {
+                                GameObject entity = Instantiate(b.blockModel, chunkPosition + new Vector3(x, y, z), Quaternion.identity) as GameObject;
+                                blockEntities[i].Add(entity);
+                            }
+                            else
+                            {
 
-                            if(isBlockTransparent(x-1, y, z, i))
-                                addFace(x, y, z, FaceDir.Left, i);
+                                if (isBlockTransparent(x, y, z + 1, i))
+                                    addFace(x, y, z, FaceDir.Front, i);
 
-                            if(isBlockTransparent(x+1, y, z, i))
-                                addFace(x, y, z, FaceDir.Right, i);
+                                if (isBlockTransparent(x, y, z - 1, i))
+                                    addFace(x, y, z, FaceDir.Back, i);
 
-                            if(isBlockTransparent(x, y + 1, z, i))
-                                addFace(x, y, z, FaceDir.Top, i);
+                                if (isBlockTransparent(x - 1, y, z, i))
+                                    addFace(x, y, z, FaceDir.Left, i);
 
-                            if(isBlockTransparent(x, y - 1, z, i))
-                                addFace(x, y, z, FaceDir.Bottom, i);
+                                if (isBlockTransparent(x + 1, y, z, i))
+                                    addFace(x, y, z, FaceDir.Right, i);
+
+                                if (isBlockTransparent(x, y + 1, z, i))
+                                    addFace(x, y, z, FaceDir.Top, i);
+
+                                if (isBlockTransparent(x, y - 1, z, i))
+                                    addFace(x, y, z, FaceDir.Bottom, i);
+                            }
                         }
                     }
                 }
@@ -208,6 +256,7 @@ public class Chunk : MonoBehaviour {
                 meshes[i].gameObject.GetComponent<MeshCollider>().sharedMesh = m;
             }
         }
+        dirty = false;
         dirtyCollider = false;
     }
 
@@ -231,27 +280,37 @@ public class Chunk : MonoBehaviour {
         Vector3 localPos = pos - c.chunkPosition;
 
         int chunkID = Mathf.FloorToInt(localPos.y / Height);
-        if(chunkID >= ChunkStack || chunkID < 0)
-        {
+        if (chunkID >= ChunkStack || chunkID < 0)
             return null;
-        }
 
         int x = (int)localPos.x;
         int y = (int)localPos.y - (chunkID * Height);
         int z = (int)localPos.z;
 
-        c.maps[chunkID][x, y, z] = blockID;
+        int worldY = ((chunkID * Height) + y);
 
-        if (blockID != 0 && Block.blocks[blockID - 1].hasTickEvent & !c.EventBlocks.ContainsKey(pos))
+        c.maps[chunkID][x, y, z] = (byte)blockID;
+
+        if (c.EventBlocks.ContainsKey(pos))
         {
-            c.EventBlocks.Add(pos, blockID);
+            c.EventBlocks.Remove(pos);
         }
+        if (World.blocks[blockID].hasTickEvent)
+        {
+            c.EventBlocks.Add(pos, (byte)blockID);
+        }
+
+        /*if (c.heightMap[x, z] < y)
+        {
+            c.heightMap[x, z] = y;
+        }*/
         return c;
     }
 
     public static Chunk SetWorldBlock(Vector3 pos, byte blockID, bool setDirty)
     {
         Chunk c = Chunk.GetChunk(pos);
+        if (Equals(c, null)) return null;
         c.dirty = setDirty;
         return SetWorldBlock(pos, blockID);
     }
@@ -267,25 +326,40 @@ public class Chunk : MonoBehaviour {
         {
             triangles.Add(new List<int>());
         }
-        if (UVs.Count >= chunkID)
+        if (this.UVs.Count >= chunkID)
         {
-            UVs.Add(new List<Vector2>());
+            this.UVs.Add(new List<Vector2>());
         }
         if (colors.Count >= chunkID)
         {
             colors.Add(new List<Color>());
         }
 
-        byte blockid = (byte) (maps[chunkID][x, y, z] - 1);
-        float blockWidth = 1f / 16f;
-        int xSide = Block.blocks[blockid].textureXSide;
-        int ySide = Block.blocks[blockid].textureYSide;
+        float blockWidth = (float)1 / (float)16;
 
-        int xTop = Block.blocks[blockid].textureXTop;
-        int yTop = Block.blocks[blockid].textureYTop;
+        byte blockID = (byte)(maps[chunkID][x, y, z] - 1);
 
-        int xBottom = Block.blocks[blockid].textureXBottom;
-        int yBottom = Block.blocks[blockid].textureYBottom;
+        /*int worldY = ((chunckID * Height) + y);
+        
+        if ((worldY) < heightMap[x, z])
+        {
+            colors[chunckID].Add(Color.gray);
+            colors[chunckID].Add(Color.gray);
+            colors[chunckID].Add(Color.gray);
+            colors[chunckID].Add(Color.gray);
+        }
+        else
+        {
+            colors[chunckID].Add(Color.white);
+            colors[chunckID].Add(Color.white);
+            colors[chunckID].Add(Color.white);
+            colors[chunckID].Add(Color.white);
+        }*/
+
+        colors[chunkID].Add(Color.white);
+        colors[chunkID].Add(Color.white);
+        colors[chunkID].Add(Color.white);
+        colors[chunkID].Add(Color.white);
 
         if (dir == FaceDir.Top)
         {
@@ -302,10 +376,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
 
-            UVs[chunkID].Add(new Vector2((0 + xTop) * blockWidth, (0 + yTop) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xTop) * blockWidth, (0 + yTop) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xTop) * blockWidth, (1 + yTop) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xTop) * blockWidth, (1 + yTop) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].top.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].top.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].top.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].top.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].top.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].top.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].top.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].top.y - 15)) * blockWidth));
         }
         else if (dir == FaceDir.Bottom)
         {
@@ -322,10 +396,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 0, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 0, z + 1));
 
-            UVs[chunkID].Add(new Vector2((0 + xBottom) * blockWidth, (0 + yBottom) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xBottom) * blockWidth, (0 + yBottom) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xBottom) * blockWidth, (1 + yBottom) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xBottom) * blockWidth, (1 + yBottom) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].bottom.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].bottom.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].bottom.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].bottom.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].bottom.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].bottom.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].bottom.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].bottom.y - 15)) * blockWidth));
         }
         else if (dir == FaceDir.Front)
         {
@@ -342,10 +416,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
 
-            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (0 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (0 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (1 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (1 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].front.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].front.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].front.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].front.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].front.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].front.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].front.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].front.y - 15)) * blockWidth));
         }
         else if (dir == FaceDir.Back)
         {
@@ -362,10 +436,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 0));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 0));
 
-            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (0 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (0 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (1 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (1 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].back.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].back.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].back.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].back.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].back.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].back.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].back.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].back.y - 15)) * blockWidth));
         }
         else if (dir == FaceDir.Right)
         {
@@ -382,10 +456,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 1, y + 1, z + 0));
 
-            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (0 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (0 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (1 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (1 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].right.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].right.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].right.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].right.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].right.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].right.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].right.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].right.y - 15)) * blockWidth));
         }
         else if (dir == FaceDir.Left)
         {
@@ -402,10 +476,10 @@ public class Chunk : MonoBehaviour {
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 1));
             verts[chunkID].Add(new Vector3(x + 0, y + 1, z + 0));
 
-            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (0 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (0 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((1 + xSide) * blockWidth, (1 + ySide) * blockWidth));
-            UVs[chunkID].Add(new Vector2((0 + xSide) * blockWidth, (1 + ySide) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].left.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].left.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].left.x) * blockWidth, (0 + Mathf.Abs(World.blocks[blockID].left.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((1 + World.blocks[blockID].left.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].left.y - 15)) * blockWidth));
+            UVs[chunkID].Add(new Vector2((0 + World.blocks[blockID].left.x) * blockWidth, (1 + Mathf.Abs(World.blocks[blockID].left.y - 15)) * blockWidth));
         }
     }
 
@@ -413,29 +487,43 @@ public class Chunk : MonoBehaviour {
     {
         if(x >= Width || z >= Width || y >= Height || x < 0 || y < 0 || z < 0)
         {
-            return true;
-            //return GetWorldBlock(new Vector3(x, y + (chunkID * Height), z) + chunkPosition) == 0;
+            //return true;
+            int blockID = GetWorldBlock(new Vector3(x, y + (chunkID * Height), z) + chunkPosition);
+            if (blockID == 0) return true;
+            Block b = World.blocks[blockID - 1];
+            return b.isTransparent;
         }else
         {
-            return maps[chunkID][x, y, z] == 0;
+            int blockID = maps[chunkID][x, y, z];
+            if (blockID == 0) return true;
+            Block b = World.blocks[blockID - 1];
+            return b.isTransparent;
         }
     }
 
     public static byte GetWorldBlock(Vector3 pos)
     {
-        Chunk c = GetChunk(pos);
+        Chunk c = Chunk.GetChunk(pos);
         if (Equals(c, null)) return 1;
 
-        int chunkID = Mathf.FloorToInt(pos.y / Height);
-        //if (chunkID >= ChunkStack || chunkID < 10) return 0;
+        Vector3 localPos = pos - c.chunkPosition;
 
-        Vector3 localPosition = pos - c.chunkPosition;
+        int chunckID = Mathf.FloorToInt(localPos.y / Height);
+        if (chunckID >= ChunkStack || chunckID <= 0)
+            return 0;
 
-        int x = (int)localPosition.x;
-        int y = (int)localPosition.y - (chunkID * Height);
-        int z = (int)localPosition.z;
+        int x = (int)localPos.x;
+        int y = (int)localPos.y - (chunckID * Height);
+        int z = (int)localPos.z;
+        byte block = 0;
+        try
+        {
+            block = c.maps[chunckID][x, y, z];
+        }catch(System.IndexOutOfRangeException e)
+        {
+            return 0;
+        }
 
-        byte block = c.maps[chunkID][x, y, z];
         return block;
     }
 
@@ -534,60 +622,60 @@ public enum FaceDir
     Back
 }
 
-public class Block
-{
-    public static List<Block> blocks = new List<Block>();
+//public class Block
+//{
+//    public static List<Block> blocks = new List<Block>();
 
-    public string displayName;
-    public string name;
-    public byte id;
+//    public string displayName;
+//    public string name;
+//    public byte id;
 
-    public byte textureX;
-    public byte textureY;
+//    public byte textureX;
+//    public byte textureY;
 
-    public byte textureXTop;
-    public byte textureYTop;
+//    public byte textureXTop;
+//    public byte textureYTop;
 
-    public byte textureXBottom;
-    public byte textureYBottom;
+//    public byte textureXBottom;
+//    public byte textureYBottom;
 
-    public byte textureXSide;
-    public byte textureYSide;
+//    public byte textureXSide;
+//    public byte textureYSide;
 
-    public bool hasTickEvent = false;
+//    public bool hasTickEvent = false;
 
-    public Block(string name, string displayName, byte tX, byte tY)
-    {
-        id = (byte)(blocks.Count + 1);
-        this.name = name;
-        this.displayName = displayName;
-        textureXBottom = tX;
-        textureXSide = tX;
-        textureXTop = tX;
+//    public Block(string name, string displayName, byte tX, byte tY)
+//    {
+//        id = (byte)(blocks.Count + 1);
+//        this.name = name;
+//        this.displayName = displayName;
+//        textureXBottom = tX;
+//        textureXSide = tX;
+//        textureXTop = tX;
 
-        textureYBottom = tY;
-        textureYSide = tY;
-        textureYTop = tY;
-    }
+//        textureYBottom = tY;
+//        textureYSide = tY;
+//        textureYTop = tY;
+//    }
 
-    public Block(string name, string displayName, byte topX, byte topY, byte sideX, byte sideY, byte bottomX, byte bottomY)
-    {
-        id = (byte)(blocks.Count + 1);
-        this.name = name;
-        this.displayName = displayName;
-        textureXBottom = bottomX;
-        textureXSide = sideX;
-        textureXTop = topX;
+//    public Block(string name, string displayName, byte topX, byte topY, byte sideX, byte sideY, byte bottomX, byte bottomY)
+//    {
+//        id = (byte)(blocks.Count + 1);
+//        this.name = name;
+//        this.displayName = displayName;
+//        textureXBottom = bottomX;
+//        textureXSide = sideX;
+//        textureXTop = topX;
 
-        textureYBottom = bottomY;
-        textureYSide = sideY;
-        textureYTop = topY;
-    }
+//        textureYBottom = bottomY;
+//        textureYSide = sideY;
+//        textureYTop = topY;
+//    }
 
-    public Block SetHasTickEvent(bool v)
-    {
-        hasTickEvent = true;
+//    public Block SetHasTickEvent(bool v)
+//    {
+//        hasTickEvent = true;
 
-        return this;
-    }
-}
+//        return this;
+//    }
+//}

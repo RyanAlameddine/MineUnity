@@ -9,16 +9,16 @@ public class PlayerMovement : MonoBehaviour
     private void Awake()
     {
         cc = GetComponent<CharacterController>();
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
     }
     public float speed = 6.0F;
     public float jumpSpeed = 8.0F;
-    public static float gravity = 0.0F;
+    public static float gravity = 20.0F;
     private Vector3 moveDirection = Vector3.zero;
 
     void Update()
     {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
         //Feed moveDirection with input.
         moveDirection = new Vector3(Input.GetAxis("Horizontal"), moveDirection.y, Input.GetAxis("Vertical"));
         moveDirection = transform.TransformDirection(moveDirection);

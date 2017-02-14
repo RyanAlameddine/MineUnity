@@ -5,20 +5,26 @@ using UnityEngine;
 
 public class World : MonoBehaviour {
 
+    public static Block[] blocks;
+    static Dictionary<string, byte> blockReferences = new Dictionary<string, byte>();
+
     public Material material;
     public static Material materials;
     public static Transform me;
-    bool oneDirty;
 
     //render Distance
     public int viewRange = 10;
 
     public void Awake()
     {
-        Block.blocks.Add(new Block("dirt", "Dirt Block", 2, 15));
-        Block.blocks.Add(new Block("stone", "Stone Block", 1, 15));
-        Block.blocks.Add(new Block("grassblock", "Grass Block", 7, 2, 3, 15, 2, 15).SetHasTickEvent(true));
-        Block.blocks.Add(new Block("bedrock", "Bedrock", 1, 14));
+        Object[] objs = Resources.LoadAll("Blocks", typeof(Block));
+        blocks = new Block[objs.Length];
+
+        for (int i = 0; i < objs.Length; i++)
+        {
+            blocks[i] = (Block)objs[i];
+            blockReferences.Add(blocks[i].name, (byte)(i+1));
+        }
 
         StartCoroutine(threadProcessor());
 
@@ -49,6 +55,11 @@ public class World : MonoBehaviour {
     }
 
     public static List<Thread> threads = new List<Thread>();
+
+    public static byte getBlockID(string name)
+    {
+        return blockReferences[name];
+    }
 
     void Tick()
     {
@@ -87,17 +98,17 @@ public class World : MonoBehaviour {
 
             if (chunk.dirty)
             {
-                oneDirty = true;
-                Chunk.Working = true;
+                //Chunk.Working = true;
                 if (!chunk.calculatedMap)
                 {
                     chunk.calculatedMap = true;
                     chunk.calculateMap();
                 }
-                chunk.calculateMesh();
-                
-                chunk.dirty = false;
-                return;
+                if (chunk.canGenerateMesh)
+                {
+                    chunk.calculateMesh();
+                    return;
+                }
             }
 
             if (chunk.lightDirty)
@@ -107,12 +118,6 @@ public class World : MonoBehaviour {
                 chunk.lightDirty = false;
             }
         }
-        if (!oneDirty)
-        {
-            PlayerMovement.gravity = 20f;
-        }
-        else
-            oneDirty = false;
     }
 
     IEnumerator threadProcessor()
