@@ -23,6 +23,7 @@ public class World : MonoBehaviour {
         for (int i = 0; i < objs.Length; i++)
         {
             blocks[i] = (Block)objs[i];
+            blocks[i].id = (byte)i;
             blockReferences.Add(blocks[i].name, (byte)(i+1));
         }
 
@@ -61,6 +62,11 @@ public class World : MonoBehaviour {
         return blockReferences[name];
     }
 
+    public static Block getBlock(int id)
+    {
+        return blocks[id - 1];
+    }
+
     void Tick()
     {
         if (Chunk.Working) return;
@@ -73,7 +79,7 @@ public class World : MonoBehaviour {
             Chunk chunk = c.Value;
             Vector3 position = c.Key;
 
-            if (Vector3.Distance(Camera.main.transform.position, position) > (Chunk.Width * viewRange / 2) + (Chunk.Width * 3))
+            if (Vector3.Distance(Camera.main.transform.position - new Vector3(0, Camera.main.transform.position.y, 0), position) > (Chunk.Width * viewRange / 2) + (Chunk.Width * 3))
             {
                 chunk.gameObject.SetActive(false);
             }else if(!chunk.gameObject.activeInHierarchy)

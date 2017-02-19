@@ -18,7 +18,7 @@ public class Chunk : MonoBehaviour {
 
     public Vector3 chunkPosition;
 
-    public List<byte[,,]> maps = new List<byte[,,]>();
+    public List<MapBlock[,,]> maps = new List<MapBlock[,,]>();
 
     public List<GameObject>[] blockEntities;
     public byte[,] heightMap = new byte[Width, Width];
@@ -49,11 +49,21 @@ public class Chunk : MonoBehaviour {
 
     private void Awake()
     {
-        chunkPosition = transform.position;
         transform.parent = World.me;
-        for(int i = 0; i < ChunkStack; i++)
+        MapBlock[,,] map = new MapBlock[Width, Height, Width];
+        for (int x = 0; x < Width; x++)
         {
-            maps.Add(new byte[Width, Height, Width]);
+            for (int y = 0; y < Height; y++)
+            {
+                for (int z = 0; z < Width; z++)
+                {
+                    map[x, y, z] = new MapBlock(0);
+                }
+            }
+        }
+        for (int i = 0; i < ChunkStack; i++)
+        {
+            maps.Add((MapBlock[,,])map.Clone());
             GameObject gO = new GameObject("ChunkStack " + i);
 
             meshes.Add(gO.AddComponent<MeshFilter>());
@@ -103,7 +113,7 @@ public class Chunk : MonoBehaviour {
         Working = false;
 
         for(int i = 0; i < ChunkStack; i++) {
-            byte[,,] map = new byte[Width, Height, Width];
+            //MapBlock[,,] map = new MapBlock[Width, Height, Width];
 
             for (int x = 0; x < Width; x++)
             {
@@ -113,33 +123,34 @@ public class Chunk : MonoBehaviour {
                     {
                         int worldYPos = i * Height + y;
                         Vector3 pos = new Vector3(x, worldYPos, z) + transform.position;
-                        if(worldYPos <= Height + 5)
+
+                        if (worldYPos <= Height + 5)
                         {
-                            map[x, y, z] = World.getBlockID("dirt");
+                            SetWorldBlock(pos, World.getBlockID("dirt"));
                         }
 
                         if (worldYPos == Height + 5 && Random.Range(0, 20) == 1)
                         {
-                            map[x, y, z] = World.getBlockID("stone");
+                            SetWorldBlock(pos, World.getBlockID("stone"));
                         }
                         if (worldYPos == Height + 5 && Random.Range(0, 20) == 1)
                         {
-                            map[x, y, z] = World.getBlockID("grass");
-                            EventBlocks.Add(pos, World.getBlockID("grass"));
+                            SetWorldBlock(pos, World.getBlockID("grass"));
+                            EventBlocks.Remove(pos);
                         }
 
                         if (worldYPos == 0)
                         {
-                            map[x, y, z] = World.getBlockID("bedrock");
+                            SetWorldBlock(pos, World.getBlockID("bedrock"));
                         }
                         else if (worldYPos < 3 && Random.Range(0, 3) == 1)
                         {
-                            map[x, y, z] = World.getBlockID("bedrock");
+                            SetWorldBlock(pos, World.getBlockID("bedrock"));
                         }
                     }
                 }
             }
-            maps[i] = map;
+            //maps[i] = map;
         }
     }
 
@@ -147,6 +158,7 @@ public class Chunk : MonoBehaviour {
     {
         Dictionary<Vector3, byte> chunkList = new Dictionary<Vector3, byte>(EventBlocks);
 
+        bool changedBlock = false;
         foreach (var result in chunkList)
         {
             Vector3 worldPos = result.Key;
@@ -154,9 +166,9 @@ public class Chunk : MonoBehaviour {
             if (block == World.getBlockID("grass") && RandomNumber(0,2) == 0)
             {
                 byte blockAbove = GetWorldBlock(worldPos + new Vector3(0, 1, 0));
-                if (blockAbove > 0)
+                if (blockAbove > 0 && !World.getBlock(blockAbove).isTransparent)
                 {
-                    SetWorldBlock(worldPos, World.getBlockID("dirt"), true);
+                    SetWorldBlock(worldPos, World.getBlockID("dirt"));
                     continue;
                 }
                 Vector3[] positions = new Vector3[4]
@@ -177,11 +189,17 @@ public class Chunk : MonoBehaviour {
                 int index = RandomNumber(0, 4);
                 if (blocksAround[index] == World.getBlockID("dirt"))
                 {
-                    SetWorldBlock(positions[index], World.getBlockID("grass"), true);
-                    
+                    Chunk c = SetWorldBlock(positions[index], World.getBlockID("grass"));
+                    if (!Equals(c, null))
+                    {
+                        changedBlock = true;
+                    }
                 }
             }
         }
+        if (changedBlock)
+            dirty = true;
+
     }
 
     public void calculateMesh()
@@ -198,7 +216,7 @@ public class Chunk : MonoBehaviour {
             {
                 Destroy(go);
             }
-            byte[,,] map = maps[i];
+            MapBlock[,,] map = maps[i];
 
             for (int x = 0; x < Width; x++)
             {
@@ -206,13 +224,35 @@ public class Chunk : MonoBehaviour {
                 {
                     for (int z = 0; z < Width; z++)
                     {
-                        if(map[x, y, z] > 0)
+                        if(map[x,y,z] != null && map[x, y, z].blockID > 0)
                         {
-                            Block b = World.blocks[map[x, y, z] - 1];
+                            Block b = map[x,y,z].getBlock();
 
                             if (b.isEntityBlock)
                             {
-                                GameObject entity = Instantiate(b.blockModel, chunkPosition + new Vector3(x, y, z), Quaternion.identity) as GameObject;
+                                GameObject entity = Instantiate(b.blockModel, chunkPosition + new Vector3(x, y + i * Height, z), Quaternion.identity) as GameObject;
+                                if (map[x, y, z].direction == Vector3.forward)
+                                {
+                                    entity.transform.forward = map[x, y, z].direction;
+                                    Debug.Log("Forward");
+                                }else if (map[x, y, z].direction == Vector3.back)
+                                {
+                                    Debug.Log("Backwards");
+                                    entity.transform.position += Vector3.right;
+                                    entity.transform.position += Vector3.forward;
+                                    entity.transform.forward = map[x, y, z].direction;
+                                }else if (map[x, y, z].direction == Vector3.left)
+                                {
+                                    Debug.Log("Left");
+                                    entity.transform.position += Vector3.right;
+                                    entity.transform.forward = map[x, y, z].direction;
+                                }else if (map[x, y, z].direction == Vector3.right)
+                                {
+                                    Debug.Log("Right");
+
+                                    entity.transform.forward = map[x, y, z].direction;
+                                    entity.transform.position += Vector3.forward;
+                                }
                                 blockEntities[i].Add(entity);
                             }
                             else
@@ -288,8 +328,49 @@ public class Chunk : MonoBehaviour {
         int z = (int)localPos.z;
 
         int worldY = ((chunkID * Height) + y);
+        c.maps[chunkID][x, y, z] = new MapBlock(blockID, Vector3.forward);
 
-        c.maps[chunkID][x, y, z] = (byte)blockID;
+        if (c.EventBlocks.ContainsKey(pos))
+        {
+            c.EventBlocks.Remove(pos);
+        }
+        
+        if (blockID != 0 && World.blocks[blockID - 1].hasTickEvent)
+        {
+            c.EventBlocks.Add(pos, (byte)blockID);
+        }
+
+        /*if (c.heightMap[x, z] < y)
+        {
+            c.heightMap[x, z] = y;
+        }*/
+        return c;
+    }
+
+    public static Chunk SetWorldBlock(Vector3 pos, byte blockID, Vector3 facingDir)
+    {
+        Chunk c = Chunk.GetChunk(pos);
+        if (Equals(c, null)) return null;
+
+        byte oldBlock = GetWorldBlock(pos);
+        if (oldBlock == 0 || blockID != oldBlock && blockID == 0)
+        {
+            c.dirtyCollider = true;
+        }
+
+        Vector3 localPos = pos - c.chunkPosition;
+
+        int chunkID = Mathf.FloorToInt(localPos.y / Height);
+        if (chunkID >= ChunkStack || chunkID < 0)
+            return null;
+
+        int x = (int)localPos.x;
+        int y = (int)localPos.y - (chunkID * Height);
+        int z = (int)localPos.z;
+
+        int worldY = ((chunkID * Height) + y);
+        c.maps[chunkID][x, y, z] = new MapBlock(blockID, facingDir * -1);
+
 
         if (c.EventBlocks.ContainsKey(pos))
         {
@@ -305,14 +386,6 @@ public class Chunk : MonoBehaviour {
             c.heightMap[x, z] = y;
         }*/
         return c;
-    }
-
-    public static Chunk SetWorldBlock(Vector3 pos, byte blockID, bool setDirty)
-    {
-        Chunk c = Chunk.GetChunk(pos);
-        if (Equals(c, null)) return null;
-        c.dirty = setDirty;
-        return SetWorldBlock(pos, blockID);
     }
 
 
@@ -337,7 +410,7 @@ public class Chunk : MonoBehaviour {
 
         float blockWidth = (float)1 / (float)16;
 
-        byte blockID = (byte)(maps[chunkID][x, y, z] - 1);
+        byte blockID = (byte)(maps[chunkID][x, y, z].blockID - 1);
 
         /*int worldY = ((chunckID * Height) + y);
         
@@ -494,7 +567,7 @@ public class Chunk : MonoBehaviour {
             return b.isTransparent;
         }else
         {
-            int blockID = maps[chunkID][x, y, z];
+            int blockID = maps[chunkID][x, y, z].blockID;
             if (blockID == 0) return true;
             Block b = World.blocks[blockID - 1];
             return b.isTransparent;
@@ -509,22 +582,16 @@ public class Chunk : MonoBehaviour {
         Vector3 localPos = pos - c.chunkPosition;
 
         int chunckID = Mathf.FloorToInt(localPos.y / Height);
-        if (chunckID >= ChunkStack || chunckID <= 0)
+        if (chunckID >= ChunkStack || chunckID < 0)
             return 0;
 
         int x = (int)localPos.x;
         int y = (int)localPos.y - (chunckID * Height);
         int z = (int)localPos.z;
-        byte block = 0;
-        try
-        {
-            block = c.maps[chunckID][x, y, z];
-        }catch(System.IndexOutOfRangeException e)
-        {
-            return 0;
-        }
-
-        return block;
+        MapBlock b = c.maps[chunckID][x, y, z];
+        if (b == null) return 0;
+        
+        return b.blockID;
     }
 
     public byte GetBlock(Vector3 worldPos)
@@ -540,7 +607,7 @@ public class Chunk : MonoBehaviour {
         int x = (int)localPosition.x;
         int y = (int)localPosition.y;
         int z = (int)localPosition.z;
-        return c.maps[chunkID][x, y, z];
+        return c.maps[chunkID][x, y, z].blockID;
     }
 
     public static Chunk GetChunk(Vector3 Position)
@@ -580,16 +647,19 @@ public class Chunk : MonoBehaviour {
 		if (Chunks.ContainsKey (cPos)) {
 			return false;
 		}
-        GameObject Chunk = new GameObject("Chunk" + cPos);
-        Chunk thisChunk = Chunk.AddComponent<Chunk>();
-        MeshRenderer mr = Chunk.AddComponent<MeshRenderer>();
-        Chunk.AddComponent<MeshFilter>();
+        GameObject chunk = new GameObject("Chunk" + cPos);
+        Chunk thisChunk = chunk.AddComponent<Chunk>();
+        MeshRenderer mr = chunk.AddComponent<MeshRenderer>();
+        chunk.AddComponent<MeshFilter>();
 
         mr.material = World.materials;
 
-        Chunk.transform.position = cPos;
+        chunk.transform.position = cPos;
+        thisChunk.chunkPosition = cPos;
 
-		Chunks.Add (cPos, thisChunk);
+
+
+        Chunks.Add (cPos, thisChunk);
 		return true;
 	}
 
@@ -620,6 +690,29 @@ public enum FaceDir
     Left,
     Front,
     Back
+}
+
+public class MapBlock
+{
+    public byte blockID;
+    public Vector3 direction;
+
+    public MapBlock(byte b)
+    {
+        blockID = b;
+    }
+
+    public MapBlock(byte b, Vector3 dir)
+    {
+        blockID = b;
+        direction = dir;
+    }
+
+    public Block getBlock()
+    {
+        Block b = World.getBlock(blockID);
+        return b;
+    }
 }
 
 //public class Block

@@ -59,9 +59,17 @@ public class BlockManagerEditor : Editor
         block.canCollideWith = EditorGUILayout.Toggle("Player Can Collide", block.canCollideWith);
         block.hasTickEvent = EditorGUILayout.Toggle("Has Tick Event", block.hasTickEvent);
         block.isEntityBlock = EditorGUILayout.Toggle("Is EntityBlock", block.isEntityBlock);
+
+
+        GUI.color = Color.red;
+        if (GUILayout.Button("Save All Changes"))
+        {
+            EditorUtility.SetDirty(block);
+        }
+        GUI.color = Color.white;
         if (block.isEntityBlock)
         {
-            block.blockModel = EditorGUILayout.ObjectField(block, typeof(GameObject)) as GameObject;
+            block.blockModel = EditorGUILayout.ObjectField(block.blockModel, typeof(GameObject), false) as GameObject;
         }
         else
         {
@@ -136,13 +144,6 @@ public class BlockManagerEditor : Editor
             }
             GUILayout.EndHorizontal();
 
-
-            GUI.color = Color.red;
-            if (GUILayout.Button("Save All Changes"))
-            {
-                EditorUtility.SetDirty(block);
-            }
-            GUI.color = Color.white;
             EditorGUILayout.Space();
             EditorGUILayout.Space();
 

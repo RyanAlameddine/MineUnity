@@ -27,7 +27,7 @@ public class BlockController : MonoBehaviour {
             BlockSelector.transform.position = blockPos;
             if (Input.GetMouseButtonDown(1))
             {
-                Chunk c = Chunk.SetWorldBlock(blockAddPos, World.getBlockID("chest"));
+                Chunk c = Chunk.SetWorldBlock(blockAddPos, World.getBlockID("chest"), FacingDirection());
                 if (c != null)
                 {
                     c.dirty = true;
@@ -56,6 +56,37 @@ public class BlockController : MonoBehaviour {
         }else
         {
             BlockSelector.transform.position = Vector3.zero;
+        }
+    }
+
+    public Vector3 FacingDirection()
+    {
+        Transform c = Camera.main.transform;
+
+        Vector3 forward = c.forward.normalized;
+
+        if (Vector3.Angle(forward, Vector3.forward) <= 45f)
+        {
+            //North
+            return Vector3.forward;
+        }
+        else if (Vector3.Angle(forward, Vector3.right) <= 45f)
+        {
+            //East
+            return Vector3.right;
+
+        }
+        else if (Vector3.Angle(forward, Vector3.back) <= 45f)
+        {
+            //South
+            return Vector3.back;
+
+        }
+        else
+        {
+            //West
+            return Vector3.left;
+
         }
     }
 }
